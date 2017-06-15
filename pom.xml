@@ -4,4 +4,11 @@
     <groupId>com.example</groupId>
     <artifactId>grf</artifactId>
     <version>1.0-SNAPSHOT</version>
+    <dependencies>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>1.0-beta9</version>
+        </dependency>
+    </dependencies>
 </project>
