@@ -11,12 +11,16 @@ import java.nio.channels.FileChannel;
 import java.util.*;
 
 class GrfItem {
-    int flags, offset, length;
+    int flags;
+    int offset;
+    int length;
+    private Rectangle bounds;
 
-    GrfItem(int flags, int offset, int length) {
+    GrfItem(int flags, int offset, int length, Rectangle bounds) {
         this.flags = flags;
         this.offset = offset;
         this.length = length;
+        this.bounds = bounds;
     }
 }
 
@@ -42,7 +46,7 @@ public class GrfFile {
     public GrfFile(File file) throws IOException {
         this(new RandomAccessFile(file, "r").getChannel().map(FileChannel.MapMode.READ_ONLY, 0, file.length()));
     }
-        
+
     public GrfFile(ByteBuffer buffer) {
         file = buffer;
         file.order(ByteOrder.LITTLE_ENDIAN);
@@ -54,26 +58,21 @@ public class GrfFile {
         return index.length;
     }
 
-    public byte[] getData(int id) {
+    public ByteBuffer getData(int id) {
         return index[id]
                 .stream()
                 .filter(i -> (i.flags & FLAG_DATA) != 0)
                 .findFirst()
-                .map(i -> {
-                    byte[] b = new byte[i.length]; 
-                    file.position(i.offset); 
-                    file.get(b); 
-                    return b;
-                })
+                .map(i -> slice(i.offset, i.length))
                 .orElse(null);
     }
 
     private List<GrfItem>[] buildIndex() {
-        List<List<GrfItem>> index = new ArrayList();
+        List<List<GrfItem>> index = new ArrayList<>();
         Map<Integer, List<GrfItem>> byId = null;
 
         if (modern) {
-            byId = new HashMap();
+            byId = new HashMap<>();
             int nextPos = 14 + file.getInt(10);
             while (true) {
                 file.position(nextPos);
@@ -85,7 +84,7 @@ public class GrfFile {
                 int type = file.get();
                 GrfItem item;
                 if (type < 0 || (type & (FLAG_8BPP | FLAG_24BPP)) == 0)
-                    item = new GrfItem(FLAG_DATA, file.position(), nextPos - file.position());
+                    item = new GrfItem(FLAG_DATA, file.position(), nextPos - file.position(), null);
                 else {
                     int zoom = file.get();
                     int flags = type & (FLAG_8BPP | FLAG_24BPP | FLAG_ALPHA | FLAG_ROWS) | FLAG_COMPRESSED | FLAG_ZOOM_1 << (zoom == 0 ? 2 : zoom <= 2 ? zoom - 1 : zoom);
@@ -97,37 +96,39 @@ public class GrfFile {
                         length = file.getInt();
                     else
                         length *= ((flags & FLAG_8BPP) != 0 ? 1 : 0) + ((flags & FLAG_24BPP) != 0 ? 3 : 0) + ((flags & FLAG_ALPHA) != 0 ? 1 : 0);
-                    item = new GrfItem(flags, file.position(), length);
+
+                    item = new GrfItem(flags, file.position(), length, bounds);
                 }
                 byId.computeIfAbsent(id, n -> new ArrayList()).add(item);
             }
-        }            
+        }
 
         file.position(modern ? 15 : 0);
         while (true) {
-            int length = getWord();
-            if (length == 0) 
+            int length = modern ? file.getInt() : file.getShort();
+            if (length == 0)
                 break;
             int type = file.get();
             if (type == -1) {
-                index.add(Collections.singletonList(new GrfItem(FLAG_DATA, file.position(), length)));
+                index.add(Collections.singletonList(new GrfItem(FLAG_DATA, file.position(), length, null)));
                 file.position(file.position() + length);
             } else if (type == -3) {
-                index.add(byId.get(getWord()));
+                index.add(byId.get(file.getInt()));
             } else {
                 int flags = FLAG_8BPP | (type & FLAG_ROWS) | ((type & 2) == 0 ? FLAG_COMPRESSED : 0);
                 length -= 8;
                 int h = file.get();
                 int w = file.getShort();
                 Rectangle bounds = new Rectangle(file.getShort(), file.getShort(), w, h);
-                index.add(Collections.singletonList(new GrfItem(flags, file.position(), length)));
-                if ((flags & FLAG_COMPRESSED) != 0) 
+                index.add(Collections.singletonList(new GrfItem(flags, file.position(), length, bounds)));
+                if ((flags & FLAG_COMPRESSED) != 0)
                     decompress(length);
                 else
                     file.position(file.position() + length);
             }
         }
-        return index.toArray(new List[0]);
+        return index.toArray(new List<>[0]);
+
     }
 
     private byte[] decompress(int length) {
@@ -141,14 +142,17 @@ public class GrfFile {
             } else {
                 int offs = (size & 7) << 8 | (file.get() & 255);
                 size = -(size >> 3);
-                System.arraycopy(result, pos-offs, result, pos, size);
+                System.arraycopy(result, pos - offs, result, pos, size);
             }
             pos += size;
         }
         return result;
     }
 
-    private int getWord() {
-        return modern ? file.getInt() : (file.getShort() & 0xFFFF);
+    private ByteBuffer slice(int offset, int length) {
+        file.position(offset);
+        ByteBuffer result = file.slice();
+        result.limit(length);
+        return result;
     }
 }
