@@ -1,0 +1,16 @@
+# item 0
+01 00       # length
+FF          # type of plain data
+01          # data
+
+# item 1
+09 00       # length
+03          # 8bpp image
+01          # height
+01 00       # width
+01 00       # x offs
+FF FF       # y offs
+01          # data
+
+# eof
+00 00
