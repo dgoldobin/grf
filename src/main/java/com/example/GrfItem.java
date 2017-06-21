@@ -51,11 +51,12 @@ public class GrfItem {
     static final int FLAG_ALPHA = 2;
     static final int FLAG_8BPP = 4;
     static final int FLAG_ROWS = 8;
-    static final int FLAG_COMPRESSED = 16;
-    static final int FLAG_DATA = 32;
-    static final int FLAG_ZOOM_1 = 64;
+    static final int FLAG_DATA = 16;
+    static final int FLAG_ZOOM_1 = 32;
+    static final int FLAG_ZOOM_2 = 64;
+    static final int FLAG_ZOOM_4 = 128;
 
-    private final int flags;
+    final int flags;
     private final ByteBuffer data;
     private final int length;
     private final Rectangle bounds;
@@ -137,7 +138,7 @@ public class GrfItem {
 
     public ByteBuffer getContent(boolean useSharedBuffer) {
         data.position(0);
-        if ((flags & FLAG_COMPRESSED) == 0)
+        if ((flags & FLAG_DATA) != 0)
             return data;
         ByteBuffer result;
         if (useSharedBuffer) {
@@ -146,10 +147,10 @@ public class GrfItem {
             result = sharedBuffer;
             result.position(0).limit(length);
         } else {
-            result = ByteBuffer.allocate(length);
+            result = ByteBuffer.allocateDirect(length);
         }
         result.order(ByteOrder.LITTLE_ENDIAN);
-
+        
         /*
         byte[] internal = result.array();
         for (int pos = 0; pos < length;) {

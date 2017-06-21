@@ -12,7 +12,7 @@ public class GrfFileTest {
     public void testToString() throws Exception {
         GrfFile grf = loadFile("v1");
 
-        assertEquals("v1, 0.0 Mb, 2 ids, 2 items", grf.toString());
+        assertEquals("v1, 0.0 Mb, 4 ids, 4 items", grf.toString());
     }
 
     private GrfFile loadFile(String name) {
